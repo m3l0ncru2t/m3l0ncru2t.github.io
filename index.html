@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Supabase Comments System for GitHub Pages -->
+<!-- Supabase Comments System - Direct API Version -->
 
 <html lang="en">
 <head>
@@ -8,7 +8,6 @@
     <title>Comments Section</title>
     
     <style>
-        /* CSS styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -128,37 +127,12 @@
             margin-bottom: 20px;
         }
         
-        .setup-instructions {
-            background-color: #d1ecf1;
-            border: 1px solid #3ecf8e;
-            padding: 20px;
-            border-radius: 8px;
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
             margin-bottom: 20px;
-        }
-        
-        .setup-instructions h3 {
-            margin-top: 0;
-            color: #0c5460;
-        }
-        
-        .setup-instructions code {
-            background-color: #f5f5f5;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-        }
-        
-        .setup-instructions ol {
-            margin-left: 20px;
-        }
-        
-        .setup-instructions li {
-            margin-bottom: 10px;
-        }
-        
-        .setup-instructions a {
-            color: #3ecf8e;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -167,53 +141,7 @@
     <div class="container">
         <h1>User Comments</h1>
         
-        <!-- Setup Instructions (remove this after configuration) -->
-        <div class="setup-instructions" id="setupInstructions">
-            <h3>🔧 Supabase Setup Required</h3>
-            <p><strong>Follow these steps to enable comments (5 minutes, no credit card!):</strong></p>
-            <ol>
-                <li>Go to <a href="https://supabase.com" target="_blank">supabase.com</a> and sign up (free, no credit card)</li>
-                <li>Click <strong>"New project"</strong></li>
-                <li>Fill in project details and click <strong>"Create new project"</strong> (wait 2-3 minutes)</li>
-                <li>Go to <strong>Settings → API</strong> (in left sidebar)</li>
-                <li>Copy your <strong>Project URL</strong> and <strong>anon/public key</strong></li>
-                <li>In this HTML code (line ~170), paste your URL and key</li>
-                <li>Go to <strong>SQL Editor</strong> (in left sidebar)</li>
-                <li>Click <strong>"+ New query"</strong> and paste this SQL code:
-                    <pre style="background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto;">
-CREATE TABLE comments (
-  id BIGSERIAL PRIMARY KEY,
-  author TEXT NOT NULL,
-  text TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Enable Row Level Security
-ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
-
--- Allow anyone to read comments
-CREATE POLICY "Anyone can read comments"
-  ON comments FOR SELECT
-  USING (true);
-
--- Allow anyone to insert comments
-CREATE POLICY "Anyone can insert comments"
-  ON comments FOR INSERT
-  WITH CHECK (true);
-
--- Allow anyone to delete comments
-CREATE POLICY "Anyone can delete comments"
-  ON comments FOR DELETE
-  USING (true);
-                    </pre>
-                </li>
-                <li>Click <strong>"Run"</strong> to create the table</li>
-                <li>Upload your HTML to GitHub Pages and test!</li>
-            </ol>
-            <p><em>Once configured, you can remove this blue box from the HTML.</em></p>
-        </div>
-        
-        <div id="errorMessage"></div>
+        <div id="statusMessage"></div>
         
         <p>Share your thoughts below:</p>
         
@@ -228,76 +156,75 @@ CREATE POLICY "Anyone can delete comments"
         </div>
     </div>
     
-    <!-- Supabase JS Client -->
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm';
-        
-        // YOUR SUPABASE CONFIGURATION
+    <script>
+        // Supabase configuration
         const SUPABASE_URL = 'https://dkylfnjzsnwovoykalmvu.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRreWxmanpzbndvdm95a2Fsdm11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3NTA0MzAsImV4cCI6MjA4MzMyNjQzMH0.9WnZ64erztoUeAO5q9bA1xcEbCJ_DwV4btye9ejn9gg';
         
-        // Initialize Supabase
-        let supabase;
-        try {
-            supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            console.log('Supabase initialized successfully');
-            
-            // Check if configuration is done
-            if (SUPABASE_URL === 'YOUR_SUPABASE_URL_HERE') {
-                showError('Please configure your Supabase credentials in the code.');
-            } else {
-                document.getElementById('setupInstructions').style.display = 'none';
-                loadComments();
-            }
-        } catch (error) {
-            console.error('Supabase initialization error:', error);
-            showError('Supabase configuration error. Please check your settings.');
-        }
+        // API endpoint
+        const API_URL = `${SUPABASE_URL}/rest/v1/comments`;
         
-        // Make functions globally available
-        window.addComment = addComment;
-        window.deleteComment = deleteComment;
+        // Common headers for all requests
+        const headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=representation'
+        };
         
         /**
-         * Show error message to user
+         * Show status message
          */
-        function showError(message) {
-            const errorDiv = document.getElementById('errorMessage');
-            errorDiv.className = 'error';
-            errorDiv.textContent = message;
+        function showMessage(message, type = 'error') {
+            const statusDiv = document.getElementById('statusMessage');
+            statusDiv.className = type;
+            statusDiv.textContent = message;
+            
+            // Auto-hide success messages after 3 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.textContent = '';
+                    statusDiv.className = '';
+                }, 3000);
+            }
         }
         
         /**
-         * Load and display all comments from Supabase
+         * Load comments from Supabase
          */
         async function loadComments() {
             const container = document.getElementById('commentsContainer');
             
             try {
-                // Query comments ordered by created_at (newest first)
-                const { data, error } = await supabase
-                    .from('comments')
-                    .select('*')
-                    .order('created_at', { ascending: false });
+                const response = await fetch(`${API_URL}?order=created_at.desc`, {
+                    method: 'GET',
+                    headers: headers
+                });
                 
-                if (error) throw error;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
                 
-                // Clear loading message
+                const comments = await response.json();
+                
                 container.innerHTML = '';
                 
-                if (!data || data.length === 0) {
+                if (comments.length === 0) {
                     container.innerHTML = '<p style="color: #999; font-style: italic;">No comments yet. Be the first to comment!</p>';
                     return;
                 }
                 
-                // Display each comment
-                data.forEach(comment => {
+                comments.forEach(comment => {
                     displayComment(comment);
                 });
                 
+                console.log('Comments loaded successfully:', comments.length);
+                
             } catch (error) {
                 console.error('Error loading comments:', error);
-                container.innerHTML = '<p style="color: #dc3545;">Error loading comments: ' + error.message + '</p>';
+                container.innerHTML = `<p style="color: #dc3545;">Error loading comments: ${error.message}</p>`;
+                showMessage(`Failed to load comments: ${error.message}`, 'error');
             }
         }
         
@@ -311,7 +238,6 @@ CREATE POLICY "Anyone can delete comments"
             commentDiv.className = 'comment';
             commentDiv.id = `comment-${comment.id}`;
             
-            // Format the date
             const date = new Date(comment.created_at);
             const dateString = date.toLocaleString();
             
@@ -328,7 +254,7 @@ CREATE POLICY "Anyone can delete comments"
         }
         
         /**
-         * Add a new comment to Supabase
+         * Add a new comment
          */
         async function addComment() {
             const nameInput = document.getElementById('userName');
@@ -338,46 +264,52 @@ CREATE POLICY "Anyone can delete comments"
             const name = nameInput.value.trim();
             const text = textInput.value.trim();
             
-            // Validate inputs
             if (name === '' || text === '') {
                 alert('Please enter both your name and a comment!');
                 return;
             }
             
-            // Disable button while posting
             postButton.disabled = true;
             postButton.textContent = 'Posting...';
             
             try {
-                // Insert comment into Supabase
-                const { data, error } = await supabase
-                    .from('comments')
-                    .insert([
-                        { author: name, text: text }
-                    ])
-                    .select();
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({
+                        author: name,
+                        text: text
+                    })
+                });
                 
-                if (error) throw error;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
                 
-                // Clear inputs
+                const newComment = await response.json();
+                
                 nameInput.value = '';
                 textInput.value = '';
                 
-                // Reload comments
+                showMessage('Comment posted successfully!', 'success');
+                
                 await loadComments();
+                
+                console.log('Comment added:', newComment);
                 
             } catch (error) {
                 console.error('Error adding comment:', error);
-                alert('Failed to post comment: ' + error.message);
+                showMessage(`Failed to post comment: ${error.message}`, 'error');
+                alert(`Failed to post comment: ${error.message}`);
             } finally {
-                // Re-enable button
                 postButton.disabled = false;
                 postButton.textContent = 'Post Comment';
             }
         }
         
         /**
-         * Delete a comment from Supabase
+         * Delete a comment
          */
         async function deleteComment(id) {
             if (!confirm('Are you sure you want to delete this comment?')) {
@@ -385,39 +317,47 @@ CREATE POLICY "Anyone can delete comments"
             }
             
             try {
-                const { error } = await supabase
-                    .from('comments')
-                    .delete()
-                    .eq('id', id);
+                const response = await fetch(`${API_URL}?id=eq.${id}`, {
+                    method: 'DELETE',
+                    headers: headers
+                });
                 
-                if (error) throw error;
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                }
                 
-                // Remove from display
                 const commentElement = document.getElementById(`comment-${id}`);
                 if (commentElement) {
                     commentElement.remove();
                 }
                 
-                // Check if no comments left
                 const container = document.getElementById('commentsContainer');
                 if (container.children.length === 0) {
                     container.innerHTML = '<p style="color: #999; font-style: italic;">No comments yet. Be the first to comment!</p>';
                 }
                 
+                showMessage('Comment deleted successfully!', 'success');
+                console.log('Comment deleted:', id);
+                
             } catch (error) {
                 console.error('Error deleting comment:', error);
-                alert('Failed to delete comment: ' + error.message);
+                showMessage(`Failed to delete comment: ${error.message}`, 'error');
+                alert(`Failed to delete comment: ${error.message}`);
             }
         }
         
         /**
-         * Escape HTML to prevent XSS attacks
+         * Escape HTML to prevent XSS
          */
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
+        
+        // Load comments when page loads
+        loadComments();
     </script>
 </body>
 </html>
