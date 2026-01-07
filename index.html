@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- Supabase Comments System - Direct API Version -->
+<!-- GitHub Gist Comments System -->
 
 <html lang="en">
 <head>
@@ -26,12 +26,12 @@
         
         h1 {
             color: #333;
-            border-bottom: 3px solid #3ecf8e;
+            border-bottom: 3px solid #0366d6;
             padding-bottom: 10px;
         }
         
         button {
-            background-color: #3ecf8e;
+            background-color: #0366d6;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -41,7 +41,7 @@
         }
         
         button:hover {
-            background-color: #2fb57a;
+            background-color: #0256c7;
         }
         
         button:disabled {
@@ -73,7 +73,7 @@
         
         .comment {
             background-color: #fff;
-            border-left: 4px solid #3ecf8e;
+            border-left: 4px solid #0366d6;
             padding: 15px;
             margin-bottom: 15px;
             border-radius: 4px;
@@ -88,7 +88,7 @@
         
         .comment-author {
             font-weight: bold;
-            color: #3ecf8e;
+            color: #0366d6;
         }
         
         .comment-date {
@@ -134,12 +134,67 @@
             border-radius: 5px;
             margin-bottom: 20px;
         }
+        
+        .setup-instructions {
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .setup-instructions h3 {
+            margin-top: 0;
+            color: #856404;
+        }
+        
+        .setup-instructions code {
+            background-color: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+        }
+        
+        .setup-instructions ol {
+            margin-left: 20px;
+        }
+        
+        .setup-instructions li {
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
         <h1>User Comments</h1>
+        
+        <!-- Setup Instructions -->
+        <div class="setup-instructions" id="setupInstructions">
+            <h3>🔧 GitHub Setup Required (2 minutes)</h3>
+            <p><strong>Follow these steps to enable comments:</strong></p>
+            <ol>
+                <li>Go to <a href="https://github.com/settings/tokens/new" target="_blank">GitHub Personal Access Token</a></li>
+                <li>Give it a name: <code>Comments Token</code></li>
+                <li>Set expiration: <code>No expiration</code> (or 1 year)</li>
+                <li>Check the box for: <strong>gist</strong> scope only</li>
+                <li>Click <strong>"Generate token"</strong></li>
+                <li>Copy the token (starts with <code>ghp_</code> or <code>github_pat_</code>)</li>
+                <li>In this HTML code (line ~165), paste your token</li>
+                <li>Go to <a href="https://gist.github.com/" target="_blank">gist.github.com</a></li>
+                <li>Create a <strong>new public gist</strong>:
+                    <ul>
+                        <li>Filename: <code>comments.json</code></li>
+                        <li>Content: <code>[]</code> (just empty brackets)</li>
+                        <li>Click "Create public gist"</li>
+                    </ul>
+                </li>
+                <li>Copy the <strong>Gist ID</strong> from the URL (e.g., <code>abc123def456</code>)</li>
+                <li>Paste the Gist ID in the HTML code (line ~166)</li>
+                <li>Upload to GitHub Pages!</li>
+            </ol>
+            <p><em>Once configured, remove this yellow box from the HTML.</em></p>
+        </div>
         
         <div id="statusMessage"></div>
         
@@ -157,20 +212,22 @@
     </div>
     
     <script>
-        // Supabase configuration
-        const SUPABASE_URL = 'https://dkylfnjzsnwovoykalmvu.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRreWxmanpzbndvdm95a2Fsdm11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc3NTA0MzAsImV4cCI6MjA4MzMyNjQzMH0.9WnZ64erztoUeAO5q9bA1xcEbCJ_DwV4btye9ejn9gg';
+        // CONFIGURATION
+        const GITHUB_TOKEN = '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';
+        const GIST_ID = '2b51e5d4df3e67a7bf16ac57d2d617e2';
         
-        // API endpoint
-        const API_URL = `${SUPABASE_URL}/rest/v1/comments`;
+        const GIST_API_URL = `https://api.github.com/gists/${GIST_ID}`;
         
-        // Common headers for all requests
-        const headers = {
-            'apikey': SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
-        };
+        // Check if configured
+        if (GITHUB_TOKEN === 'YOUR_GITHUB_TOKEN_HERE' || GIST_ID === 'YOUR_GIST_ID_HERE') {
+            document.getElementById('statusMessage').className = 'error';
+            document.getElementById('statusMessage').textContent = 'Please configure GitHub Token and Gist ID in the code.';
+        } else {
+            document.getElementById('setupInstructions').style.display = 'none';
+            loadComments();
+        }
+        
+        let commentsData = [];
         
         /**
          * Show status message
@@ -180,7 +237,6 @@
             statusDiv.className = type;
             statusDiv.textContent = message;
             
-            // Auto-hide success messages after 3 seconds
             if (type === 'success') {
                 setTimeout(() => {
                     statusDiv.textContent = '';
@@ -190,36 +246,42 @@
         }
         
         /**
-         * Load comments from Supabase
+         * Load comments from GitHub Gist
          */
         async function loadComments() {
             const container = document.getElementById('commentsContainer');
             
             try {
-                const response = await fetch(`${API_URL}?order=created_at.desc`, {
-                    method: 'GET',
-                    headers: headers
+                const response = await fetch(GIST_API_URL, {
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
                 });
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
+                    throw new Error(`GitHub API error: ${response.status}`);
                 }
                 
-                const comments = await response.json();
+                const gist = await response.json();
+                const fileContent = gist.files['comments.json'].content;
+                commentsData = JSON.parse(fileContent);
                 
                 container.innerHTML = '';
                 
-                if (comments.length === 0) {
+                if (commentsData.length === 0) {
                     container.innerHTML = '<p style="color: #999; font-style: italic;">No comments yet. Be the first to comment!</p>';
                     return;
                 }
                 
-                comments.forEach(comment => {
+                // Sort by date (newest first)
+                commentsData.sort((a, b) => new Date(b.date) - new Date(a.date));
+                
+                commentsData.forEach(comment => {
                     displayComment(comment);
                 });
                 
-                console.log('Comments loaded successfully:', comments.length);
+                console.log('Comments loaded:', commentsData.length);
                 
             } catch (error) {
                 console.error('Error loading comments:', error);
@@ -238,7 +300,7 @@
             commentDiv.className = 'comment';
             commentDiv.id = `comment-${comment.id}`;
             
-            const date = new Date(comment.created_at);
+            const date = new Date(comment.date);
             const dateString = date.toLocaleString();
             
             commentDiv.innerHTML = `
@@ -247,10 +309,44 @@
                     <span class="comment-date">${dateString}</span>
                 </div>
                 <div class="comment-text">${escapeHtml(comment.text)}</div>
-                <button class="delete-btn" onclick="deleteComment(${comment.id})">Delete</button>
+                <button class="delete-btn" onclick="deleteComment('${comment.id}')">Delete</button>
             `;
             
             container.appendChild(commentDiv);
+        }
+        
+        /**
+         * Save comments to GitHub Gist
+         */
+        async function saveComments() {
+            try {
+                const response = await fetch(GIST_API_URL, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `token ${GITHUB_TOKEN}`,
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        files: {
+                            'comments.json': {
+                                content: JSON.stringify(commentsData, null, 2)
+                            }
+                        }
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`GitHub API error: ${response.status}`);
+                }
+                
+                console.log('Comments saved to Gist');
+                return true;
+                
+            } catch (error) {
+                console.error('Error saving comments:', error);
+                throw error;
+            }
         }
         
         /**
@@ -273,21 +369,16 @@
             postButton.textContent = 'Posting...';
             
             try {
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: headers,
-                    body: JSON.stringify({
-                        author: name,
-                        text: text
-                    })
-                });
+                const newComment = {
+                    id: Date.now().toString(),
+                    author: name,
+                    text: text,
+                    date: new Date().toISOString()
+                };
                 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
+                commentsData.unshift(newComment);
                 
-                const newComment = await response.json();
+                await saveComments();
                 
                 nameInput.value = '';
                 textInput.value = '';
@@ -296,12 +387,12 @@
                 
                 await loadComments();
                 
-                console.log('Comment added:', newComment);
-                
             } catch (error) {
                 console.error('Error adding comment:', error);
                 showMessage(`Failed to post comment: ${error.message}`, 'error');
                 alert(`Failed to post comment: ${error.message}`);
+                // Remove the comment if save failed
+                commentsData.shift();
             } finally {
                 postButton.disabled = false;
                 postButton.textContent = 'Post Comment';
@@ -317,15 +408,9 @@
             }
             
             try {
-                const response = await fetch(`${API_URL}?id=eq.${id}`, {
-                    method: 'DELETE',
-                    headers: headers
-                });
+                commentsData = commentsData.filter(comment => comment.id !== id);
                 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`HTTP ${response.status}: ${errorText}`);
-                }
+                await saveComments();
                 
                 const commentElement = document.getElementById(`comment-${id}`);
                 if (commentElement) {
@@ -338,12 +423,12 @@
                 }
                 
                 showMessage('Comment deleted successfully!', 'success');
-                console.log('Comment deleted:', id);
                 
             } catch (error) {
                 console.error('Error deleting comment:', error);
                 showMessage(`Failed to delete comment: ${error.message}`, 'error');
                 alert(`Failed to delete comment: ${error.message}`);
+                await loadComments(); // Reload to restore state
             }
         }
         
@@ -355,9 +440,6 @@
             div.textContent = text;
             return div.innerHTML;
         }
-        
-        // Load comments when page loads
-        loadComments();
     </script>
 </body>
 </html>
